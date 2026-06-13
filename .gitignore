@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+cache/
+models/
+progress.json
+install.log
+.probe.py
+.wheelcheck/

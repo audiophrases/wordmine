@@ -1,0 +1,183 @@
+{
+  "language": "en-US",
+  "level": "beginner",
+  "description": "Seed vocabulary for WordMine. Add or replace 'words' to load your own lists.",
+  "words": [
+    {
+      "id": "apple",
+      "word": "apple",
+      "phonetic": "/ˈæp.əl/",
+      "part_of_speech": "noun",
+      "definition": "a round fruit with red or green skin",
+      "example": "I eat an apple every day.",
+      "distractors": ["banana", "orange", "bread"],
+      "category": "food",
+      "level": 1
+    },
+    {
+      "id": "water",
+      "word": "water",
+      "phonetic": "/ˈwɔː.t̬ɚ/",
+      "part_of_speech": "noun",
+      "definition": "a clear liquid that you drink",
+      "example": "I drink water when I am thirsty.",
+      "distractors": ["milk", "juice", "coffee"],
+      "category": "food",
+      "level": 1
+    },
+    {
+      "id": "house",
+      "word": "house",
+      "phonetic": "/haʊs/",
+      "part_of_speech": "noun",
+      "definition": "a building where people live",
+      "example": "My house has two bedrooms.",
+      "distractors": ["school", "store", "car"],
+      "category": "home",
+      "level": 1
+    },
+    {
+      "id": "dog",
+      "word": "dog",
+      "phonetic": "/dɔːɡ/",
+      "part_of_speech": "noun",
+      "definition": "a friendly animal that people keep as a pet",
+      "example": "The dog runs in the park.",
+      "distractors": ["cat", "bird", "fish"],
+      "category": "animals",
+      "level": 1
+    },
+    {
+      "id": "run",
+      "word": "run",
+      "phonetic": "/rʌn/",
+      "part_of_speech": "verb",
+      "definition": "to move quickly using your legs",
+      "example": "I run every morning.",
+      "distractors": ["walk", "jump", "sleep"],
+      "category": "verbs",
+      "level": 1
+    },
+    {
+      "id": "happy",
+      "word": "happy",
+      "phonetic": "/ˈhæp.i/",
+      "part_of_speech": "adjective",
+      "definition": "feeling good and pleased",
+      "example": "She is happy today.",
+      "distractors": ["sad", "angry", "tired"],
+      "category": "adjectives",
+      "level": 1
+    },
+    {
+      "id": "book",
+      "word": "book",
+      "phonetic": "/bʊk/",
+      "part_of_speech": "noun",
+      "definition": "pages with words that you read",
+      "example": "I read a book before bed.",
+      "distractors": ["pen", "chair", "lamp"],
+      "category": "objects",
+      "level": 1
+    },
+    {
+      "id": "tree",
+      "word": "tree",
+      "phonetic": "/triː/",
+      "part_of_speech": "noun",
+      "definition": "a tall plant with a trunk and leaves",
+      "example": "Birds live in the tree.",
+      "distractors": ["flower", "rock", "grass"],
+      "category": "nature",
+      "level": 1
+    },
+    {
+      "id": "friend",
+      "word": "friend",
+      "phonetic": "/frend/",
+      "part_of_speech": "noun",
+      "definition": "a person you like and know well",
+      "example": "My friend helps me study.",
+      "distractors": ["teacher", "doctor", "stranger"],
+      "category": "people",
+      "level": 1
+    },
+    {
+      "id": "eat",
+      "word": "eat",
+      "phonetic": "/iːt/",
+      "part_of_speech": "verb",
+      "definition": "to put food in your mouth and swallow it",
+      "example": "We eat dinner at seven.",
+      "distractors": ["drink", "cook", "buy"],
+      "category": "verbs",
+      "level": 1
+    },
+    {
+      "id": "big",
+      "word": "big",
+      "phonetic": "/bɪɡ/",
+      "part_of_speech": "adjective",
+      "definition": "large in size",
+      "example": "An elephant is very big.",
+      "distractors": ["small", "fast", "cold"],
+      "category": "adjectives",
+      "level": 1
+    },
+    {
+      "id": "school",
+      "word": "school",
+      "phonetic": "/skuːl/",
+      "part_of_speech": "noun",
+      "definition": "a place where children go to learn",
+      "example": "I go to school by bus.",
+      "distractors": ["hospital", "market", "park"],
+      "category": "places",
+      "level": 1
+    },
+    {
+      "id": "red",
+      "word": "red",
+      "phonetic": "/red/",
+      "part_of_speech": "adjective",
+      "definition": "the color of blood or a tomato",
+      "example": "The apple is red.",
+      "distractors": ["blue", "green", "yellow"],
+      "category": "colors",
+      "level": 1
+    },
+    {
+      "id": "mountain",
+      "word": "mountain",
+      "phonetic": "/ˈmaʊn.tˤən/",
+      "part_of_speech": "noun",
+      "definition": "a very high hill made of rock",
+      "example": "We climbed the tall mountain.",
+      "distractors": ["river", "valley", "beach"],
+      "category": "nature",
+      "level": 2
+    },
+    {
+      "id": "music",
+      "word": "music",
+      "phonetic": "/ˈmjuː.zɪk/",
+      "part_of_speech": "noun",
+      "definition": "sounds that are pleasant to listen to",
+      "example": "I listen to music every day.",
+      "distractors": ["noise", "silence", "picture"],
+      "category": "arts",
+      "level": 2
+    },
+    {
+      "id": "morning",
+      "word": "morning",
+      "phonetic": "/ˈmɔːr.nɪŋ/",
+      "part_of_speech": "noun",
+      "definition": "the early part of the day",
+      "example": "I drink coffee in the morning.",
+      "distractors": ["night", "evening", "week"],
+      "category": "time",
+      "level": 2
+    }
+  ]
+}

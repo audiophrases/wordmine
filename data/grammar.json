@@ -1,0 +1,107 @@
+{
+  "language": "en-US",
+  "level": "beginner",
+  "description": "Seed grammar rules for WordMine. Add or replace 'rules' to load your own. 'answer' must be one of 'options'.",
+  "rules": [
+    {
+      "id": "present_simple_3rd",
+      "topic": "Present Simple",
+      "prompt": "She ___ to school every day.",
+      "options": ["go", "goes", "going", "gone"],
+      "answer": "goes",
+      "explanation": "In the present simple, add -s for he / she / it.",
+      "spoken": "She goes to school every day.",
+      "level": 1
+    },
+    {
+      "id": "articles_a_an",
+      "topic": "Articles",
+      "prompt": "I ate ___ apple.",
+      "options": ["a", "an", "the", "some"],
+      "answer": "an",
+      "explanation": "Use 'an' before a vowel sound: an apple.",
+      "spoken": "I ate an apple.",
+      "level": 1
+    },
+    {
+      "id": "plural_nouns",
+      "topic": "Plurals",
+      "prompt": "I have three ___.",
+      "options": ["cat", "cats", "cat's", "cates"],
+      "answer": "cats",
+      "explanation": "Add -s to make most nouns plural: one cat, three cats.",
+      "spoken": "I have three cats.",
+      "level": 1
+    },
+    {
+      "id": "past_simple_go",
+      "topic": "Past Simple",
+      "prompt": "Yesterday, I ___ to the store.",
+      "options": ["go", "goes", "went", "gone"],
+      "answer": "went",
+      "explanation": "'Go' is irregular. Its past simple form is 'went'.",
+      "spoken": "Yesterday, I went to the store.",
+      "level": 2
+    },
+    {
+      "id": "present_continuous",
+      "topic": "Present Continuous",
+      "prompt": "Right now, she ___ a book.",
+      "options": ["reads", "read", "is reading", "reading"],
+      "answer": "is reading",
+      "explanation": "Use be + verb-ing for actions happening now.",
+      "spoken": "Right now, she is reading a book.",
+      "level": 2
+    },
+    {
+      "id": "prepositions_on",
+      "topic": "Prepositions",
+      "prompt": "The cat is ___ the table.",
+      "options": ["in", "on", "at", "of"],
+      "answer": "on",
+      "explanation": "Use 'on' for a surface: on the table.",
+      "spoken": "The cat is on the table.",
+      "level": 1
+    },
+    {
+      "id": "comparatives",
+      "topic": "Comparatives",
+      "prompt": "An elephant is ___ than a dog.",
+      "options": ["big", "bigger", "biggest", "more big"],
+      "answer": "bigger",
+      "explanation": "Short adjectives add -er to compare: big -> bigger.",
+      "spoken": "An elephant is bigger than a dog.",
+      "level": 2
+    },
+    {
+      "id": "to_be_plural",
+      "topic": "Verb 'to be'",
+      "prompt": "They ___ happy.",
+      "options": ["is", "am", "are", "be"],
+      "answer": "are",
+      "explanation": "Use 'are' with they / we / you.",
+      "spoken": "They are happy.",
+      "level": 1
+    },
+    {
+      "id": "can_ability",
+      "topic": "Modal 'can'",
+      "prompt": "I ___ swim very well.",
+      "options": ["can", "cans", "am can", "to can"],
+      "answer": "can",
+      "explanation": "'Can' never changes form and is followed by the base verb.",
+      "spoken": "I can swim very well.",
+      "level": 1
+    },
+    {
+      "id": "there_are",
+      "topic": "There is / are",
+      "prompt": "There ___ two books on the desk.",
+      "options": ["is", "are", "be", "am"],
+      "answer": "are",
+      "explanation": "Use 'there are' with plural nouns: two books.",
+      "spoken": "There are two books on the desk.",
+      "level": 2
+    }
+  ]
+}

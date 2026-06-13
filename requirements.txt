@@ -1,0 +1,7 @@
+# WordMine dependencies (Python 3.14, Windows). All ship cp314 wheels.
+ursina            # voxel game engine (pulls in panda3d)
+edge-tts          # Microsoft Edge American-English neural TTS
+pygame-ce         # provides the `pygame` module; used only for MP3 playback
+sounddevice       # microphone capture (PortAudio bundled; no PyAudio needed)
+numpy             # audio buffer handling
+vosk              # offline speech recognition (no API key / internet)
