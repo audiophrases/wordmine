@@ -1,153 +1,110 @@
 """
-Heads-up display: crosshair, hotbar, learner stats, narration subtitles,
-transient toasts, and a toggleable Word Journal of learned vocabulary.
+Minimal, text-free HUD for the audio-only experience.
 
-All elements are parented to camera.ui. Timers are advanced from HUD.update(),
-called once per frame by the game loop.
+Everything here is iconographic -- there is no readable English in the gameplay
+loop. It provides: an aiming reticle that changes colour by state, a pulsing
+"listening" ring while the mic is held, a boot-time loading bar (while TTS is
+pre-baked), and a row of colour pips showing what you've collected.
 """
 from __future__ import annotations
 
-from typing import List
+import math
+import time as _time
 
-from ursina import Entity, Text, camera, color, window
+from ursina import Entity, camera, color, window
 
-from . import blocks
+
+_RETICLE = {
+    "idle": color.rgba(1, 1, 1, 0.7),
+    "target": color.rgba(1.0, 0.85, 0.2, 1),   # gold: "you can echo this"
+    "listen": color.rgba(0.2, 1.0, 1.0, 1),    # cyan: recording
+}
 
 
 class HUD:
     def __init__(self):
-        # Crosshair
-        self.crosshair = Text(
-            "+", parent=camera.ui, origin=(0, 0), position=(0, 0),
-            scale=1.5, color=color.rgba(1, 1, 1, 0.7),
-        )
+        # aiming reticle (a small dot)
+        self.reticle = Entity(parent=camera.ui, model="circle", scale=0.009,
+                              color=_RETICLE["idle"])
+        # pulsing listening ring (hidden until recording)
+        self.ring = Entity(parent=camera.ui, model="circle",
+                           scale=0.05, color=color.rgba(0.2, 1, 1, 0.0),
+                           double_sided=True)
+        self._listening = False
 
-        # Stats panel (top-left)
-        self.stats_text = Text(
-            "", parent=camera.ui, origin=(-0.5, 0.5),
-            position=window.top_left + (0.02, -0.02),
-            scale=0.9, color=color.white,
-        )
+        # boot loading bar
+        self.loading_root = Entity(parent=camera.ui)
+        Entity(parent=self.loading_root, model="quad", scale=(0.54, 0.06),
+               color=color.rgba(0, 0, 0, 0.65))
+        self.load_fill = Entity(parent=self.loading_root, model="quad",
+                                origin=(-0.5, 0), position=(-0.25, 0, -0.02),
+                                scale=(0.0001, 0.04), color=color.azure)
+        self.load_dot = Entity(parent=self.loading_root, model="circle",
+                               position=(0, 0.07, -0.02), scale=0.02, color=color.cyan)
 
-        # Controls hint (top-right)
-        self.controls = Text(
-            "WASD move · Space jump · Mouse look\n"
-            "L-click mine · R-click place · Scroll/1-6 select\n"
-            "J journal · ESC release mouse",
-            parent=camera.ui, origin=(0.5, 0.5),
-            position=window.top_right + (-0.02, -0.02),
-            scale=0.7, color=color.rgba(1, 1, 1, 0.75),
-        )
+        # danger vignette (reddens as the chaser closes) + "hidden" tint.
+        # z=1 keeps these behind the reticle/pips but over the world.
+        self.vignette = Entity(parent=camera.ui, model="quad", scale=(2.2, 1.2),
+                               z=1.0, color=color.rgba(1, 0, 0, 0))
+        self.hidden_ov = Entity(parent=camera.ui, model="quad", scale=(2.2, 1.2),
+                                z=1.0, color=color.rgba(0.15, 0.4, 0.7, 0))
+        self._danger = 0.0
 
-        # Subtitle (narration captions) just above the hotbar
-        self.subtitle = Text(
-            "", parent=camera.ui, origin=(0, 0), position=(0, -0.34),
-            scale=1.0, color=color.rgba(1, 1, 0.6, 1),
-        )
-        self._subtitle_timer = 0.0
+        # collection pips (bottom-centre)
+        self._pips = []
+        self._pip_y = window.bottom[1] + 0.04
 
-        # Toast (transient feedback) near center
-        self.toast_text = Text(
-            "", parent=camera.ui, origin=(0, 0), position=(0, 0.28),
-            scale=1.3, color=color.azure,
-        )
-        self._toast_timer = 0.0
+    # -- loading -----------------------------------------------------------
+    def set_loading(self, frac: float):
+        self.load_fill.scale_x = max(0.0001, 0.5 * min(1.0, max(0.0, frac)))
 
-        # Hotbar
-        self.slot_size = 0.07
-        self.slot_gap = 0.012
-        self._slots: List[dict] = []
-        self._build_hotbar(blocks.HOTBAR)
+    def finish_loading(self):
+        self.loading_root.enabled = False
 
-        # Word Journal (hidden until toggled)
-        self.journal_bg = Entity(
-            parent=camera.ui, model="quad", color=color.rgba(0, 0, 0, 0.85),
-            scale=(0.9, 0.85), position=(0, 0), enabled=False,
-        )
-        self.journal_text = Text(
-            "", parent=self.journal_bg, origin=(0, 0.5),
-            position=(0, 0.46), scale=(1.0, 1.0), color=color.white,
-        )
-        self.journal_open = False
+    # -- reticle / mic -----------------------------------------------------
+    def set_reticle(self, state: str):
+        self.reticle.color = _RETICLE.get(state, _RETICLE["idle"])
 
-    # -- hotbar ------------------------------------------------------------
-    def _build_hotbar(self, slot_blocks):
-        n = len(slot_blocks)
-        step = self.slot_size + self.slot_gap
-        start_x = -(n - 1) / 2 * step
-        y = window.bottom[1] + 0.06
-        for i, bt in enumerate(slot_blocks):
-            x = start_x + i * step
-            bg = Entity(
-                parent=camera.ui, model="quad",
-                color=color.rgba(0, 0, 0, 0.5),
-                scale=self.slot_size, position=(x, y, 0),
-            )
-            swatch = Entity(
-                parent=camera.ui, model="quad", color=bt.color,
-                scale=self.slot_size * 0.72, position=(x, y, -0.01),
-            )
-            key_label = Text(
-                str(i + 1), parent=camera.ui, origin=(-0.5, -0.5),
-                position=(x - self.slot_size / 2 + 0.004, y - self.slot_size / 2 + 0.004),
-                scale=0.6, color=color.rgba(1, 1, 1, 0.8),
-            )
-            count_label = Text(
-                "", parent=camera.ui, origin=(0.5, 0.5),
-                position=(x + self.slot_size / 2 - 0.004, y + self.slot_size / 2 - 0.004),
-                scale=0.7, color=color.white,
-            )
-            self._slots.append(
-                {"bg": bg, "swatch": swatch, "count": count_label, "block": bt}
-            )
+    def set_listening(self, on: bool):
+        self._listening = on
+        if not on:
+            self.ring.color = color.rgba(0.2, 1, 1, 0.0)
 
-    def update_hotbar(self, inventory):
-        for i, slot in enumerate(self._slots):
-            bid = slot["block"].id
-            slot["count"].text = str(inventory.count(bid))
-            selected = i == inventory.selected_index
-            slot["bg"].color = color.rgba(1, 1, 1, 0.45) if selected else color.rgba(0, 0, 0, 0.5)
-            slot["bg"].scale = self.slot_size * (1.12 if selected else 1.0)
+    # -- threat / hidden feedback -----------------------------------------
+    def set_danger(self, frac: float):
+        self._danger = max(0.0, min(1.0, frac))
 
-    # -- text feedback -----------------------------------------------------
-    def set_stats(self, s: dict):
-        self.stats_text.text = (
-            f"<azure>WordMine\n"
-            f"<white>Level {s['level']}   XP {s['xp']}\n"
-            f"Words learned {s['learned']}/{s['total_words']}\n"
-            f"Streak {s['streak']} (best {s['best_streak']})   Acc {s['accuracy']}%"
-        )
+    def set_hidden(self, on: bool):
+        self.hidden_ov.color = color.rgba(0.15, 0.4, 0.7, 0.22 if on else 0.0)
 
-    def toast(self, message: str, duration: float = 2.5, col=None):
-        self.toast_text.text = message
-        self.toast_text.color = col or color.azure
-        self._toast_timer = duration
+    # -- collection feedback ----------------------------------------------
+    def add_pip(self, col):
+        pip = Entity(parent=camera.ui, model="quad", scale=0.028,
+                     color=col, position=(0, self._pip_y, 0))
+        self._pips.append(pip)
+        step = 0.036
+        start = -(len(self._pips) - 1) / 2 * step
+        for i, p in enumerate(self._pips):
+            p.x = start + i * step
 
-    def show_subtitle(self, message: str, duration: float = 3.0):
-        self.subtitle.text = message
-        self._subtitle_timer = duration
+    def clear_pips(self):
+        for p in self._pips:
+            from ursina import destroy
+            destroy(p)
+        self._pips = []
 
+    # -- per-frame ---------------------------------------------------------
     def update(self, dt: float):
-        if self._toast_timer > 0:
-            self._toast_timer -= dt
-            if self._toast_timer <= 0:
-                self.toast_text.text = ""
-        if self._subtitle_timer > 0:
-            self._subtitle_timer -= dt
-            if self._subtitle_timer <= 0:
-                self.subtitle.text = ""
-
-    # -- journal -----------------------------------------------------------
-    def toggle_journal(self, learned_words, total: int):
-        self.journal_open = not self.journal_open
-        self.journal_bg.enabled = self.journal_open
-        if self.journal_open:
-            lines = [f"<azure>WORD JOURNAL  ({len(learned_words)}/{total} learned)<white>", ""]
-            if not learned_words:
-                lines.append("Mine glowing Word Ore and answer correctly")
-                lines.append("twice to add words here.")
-            for w in learned_words:
-                lines.append(f"<gold>{w.word}<white>  {w.phonetic}")
-                lines.append(f"   {w.definition}")
-            self.journal_text.text = "\n".join(lines)
-        return self.journal_open
+        if self.loading_root.enabled:
+            self.load_dot.x = math.sin(_time.perf_counter() * 4) * 0.24
+        t = _time.perf_counter()
+        if self._listening:
+            pulse = 0.045 + 0.015 * math.sin(t * 10)
+            self.ring.scale = pulse
+            self.ring.color = color.rgba(0.2, 1, 1, 0.5 + 0.3 * math.sin(t * 10))
+        # danger vignette pulses faster as it intensifies
+        if self._danger > 0.01:
+            beat = 0.8 + 0.2 * math.sin(t * (4 + 8 * self._danger))
+            self.vignette.color = color.rgba(1, 0, 0, self._danger * 0.5 * beat)
+        else:
+            self.vignette.color = color.rgba(1, 0, 0, 0)

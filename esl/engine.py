@@ -1,15 +1,12 @@
 """
-The modular challenge engine.
+Invisible spaced-repetition engine for the audio-only "See, Echo, Act" loop.
 
-`ChallengeFactory` turns a VocabWord or GrammarRule into a presentable
-`Challenge`. `ChallengeManager` decides *which* challenge to show next (a light
-spaced-repetition scheme), grades answers, and tracks the learner's progress.
+There is no quiz UI any more. The SRS no longer *asks* questions -- it *shapes
+the world*: it decides which word a locked gate demands next, prioritising the
+words the player is weakest at. Every spoken echo (success or failure) feeds the
+same mastery model, so practice happens entirely through play.
 
-To add a new challenge kind:
-  1. add a type constant in models.py,
-  2. add a `_build_*` method here and register it in ChallengeFactory,
-  3. render it in esl/challenge_ui.py.
-Nothing in the game loop needs to change.
+`Progress` (the mastery/spaced-repetition core) is unchanged from before.
 """
 from __future__ import annotations
 
@@ -18,19 +15,13 @@ import random
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
-from . import models
-from .models import (
-    Challenge,
-    ChallengeResult,
-    GrammarRule,
-    VocabWord,
-)
+from .models import VocabWord
 
 
 # --------------------------------------------------------------------------
-# Text matching helper (shared with the speech recogniser)
+# Forgiving text matching for spoken (Vosk) answers
 # --------------------------------------------------------------------------
 def normalize(text: str) -> str:
     text = text.lower()
@@ -39,109 +30,17 @@ def normalize(text: str) -> str:
 
 
 def text_match(given: str, expected: str, threshold: float = 0.6) -> bool:
-    """Fuzzy, forgiving comparison used for spoken answers."""
+    """True if what Vosk heard is 'close enough' to the target word/phrase."""
     g, e = normalize(given), normalize(expected)
-    if not g:
+    if not g or not e:
         return False
-    if e and e in g.split():
-        return True
-    if e and e in g:
+    if e in g.split() or e in g:
         return True
     return SequenceMatcher(None, g, e).ratio() >= threshold
 
 
 # --------------------------------------------------------------------------
-# Challenge construction
-# --------------------------------------------------------------------------
-class ChallengeFactory:
-    """Builds Challenge objects from source data."""
-
-    def __init__(self, words: List[VocabWord], speech_available: bool = True):
-        self.words = words
-        self.speech_available = speech_available
-
-    def _options_for(self, word: VocabWord, k: int = 3) -> List[str]:
-        pool = [d for d in word.distractors if normalize(d) != normalize(word.word)]
-        if len(pool) < k:
-            others = [w.word for w in self.words if w.id != word.id]
-            random.shuffle(others)
-            for o in others:
-                if len(pool) >= k:
-                    break
-                if normalize(o) not in {normalize(word.word)} | {normalize(p) for p in pool}:
-                    pool.append(o)
-        options = pool[:k] + [word.word]
-        random.shuffle(options)
-        return options
-
-    def build_listen_and_choose(self, word: VocabWord) -> Challenge:
-        return Challenge(
-            type=models.LISTEN_AND_CHOOSE,
-            title="Listen & Choose",
-            instruction="Listen to the meaning, then choose the word.  [R] replays the audio.",
-            prompt_text=word.definition,
-            spoken_text=word.definition,
-            options=self._options_for(word),
-            answer=word.word,
-            explanation=f"{word.word}  {word.phonetic}\n{word.definition}",
-            hide_prompt_text=True,
-            source_id=word.id,
-            meta={"reveal_spoken": word.example or word.word},
-        )
-
-    def build_definition_match(self, word: VocabWord) -> Challenge:
-        return Challenge(
-            type=models.DEFINITION_MATCH,
-            title="Read & Match",
-            instruction="Read the meaning and choose the matching word.",
-            prompt_text=word.definition,
-            spoken_text=word.definition,
-            options=self._options_for(word),
-            answer=word.word,
-            explanation=f"{word.word}  {word.phonetic}\nExample: {word.example}",
-            source_id=word.id,
-            meta={"reveal_spoken": word.example or word.word},
-        )
-
-    def build_speak_the_word(self, word: VocabWord) -> Challenge:
-        return Challenge(
-            type=models.SPEAK_THE_WORD,
-            title="Say It!",
-            instruction="Hold [V] and say the word into your microphone.",
-            prompt_text=f"{word.word}\n{word.phonetic}\n\n{word.definition}",
-            spoken_text=word.word,
-            options=[],
-            answer=word.word,
-            explanation=f"Great pronunciation practice!\nExample: {word.example}",
-            accepts_speech=True,
-            source_id=word.id,
-            meta={"reveal_spoken": word.example or word.word},
-        )
-
-    def build_grammar_fill(self, rule: GrammarRule) -> Challenge:
-        return Challenge(
-            type=models.GRAMMAR_FILL,
-            title=f"Grammar: {rule.topic}",
-            instruction="Choose the word that correctly fills the blank.",
-            prompt_text=rule.prompt,
-            spoken_text="",  # spoken only on reveal (the full correct sentence)
-            options=list(rule.options),
-            answer=rule.answer,
-            explanation=rule.explanation,
-            source_id=rule.id,
-            meta={"reveal_spoken": rule.spoken or rule.prompt.replace("___", rule.answer)},
-        )
-
-    def for_word(self, word: VocabWord) -> Challenge:
-        builders = [self.build_listen_and_choose, self.build_definition_match]
-        if self.speech_available:
-            # weight speaking a little higher -- it's the signature mechanic
-            builders += [self.build_speak_the_word, self.build_speak_the_word]
-        return random.choice(builders)(word)
-
-
-# --------------------------------------------------------------------------
-# Progress / mastery tracking
+# Mastery / spaced-repetition store (kept from the original design)
 # --------------------------------------------------------------------------
 class Progress:
     LEVEL_STEP = 50  # xp per level
@@ -153,7 +52,6 @@ class Progress:
         self.total_attempts = 0
         self.streak = 0
         self.best_streak = 0
-        # per source id: {"seen": n, "correct": n, "streak": n}
         self.mastery: Dict[str, Dict[str, int]] = {}
         self.load()
 
@@ -164,6 +62,9 @@ class Progress:
     @property
     def learned_ids(self):
         return {sid for sid, m in self.mastery.items() if m.get("streak", 0) >= 2}
+
+    def seen_count(self, sid: str) -> int:
+        return self.mastery.get(sid, {}).get("seen", 0)
 
     def record(self, source_id: str, correct: bool, xp: int):
         m = self.mastery.setdefault(source_id, {"seen": 0, "correct": 0, "streak": 0})
@@ -182,6 +83,7 @@ class Progress:
         self.save()
 
     def weight(self, source_id: str) -> float:
+        """Higher = needs practice more (new or weak)."""
         m = self.mastery.get(source_id)
         if not m or m["seen"] == 0:
             return 3.0  # brand new material: introduce it
@@ -224,69 +126,50 @@ class Progress:
 
 
 # --------------------------------------------------------------------------
-# Top-level manager used by the game
+# SRS Director -- decides what the world should ask the player to say
 # --------------------------------------------------------------------------
-class ChallengeManager:
+class SRSDirector:
     def __init__(
         self,
         words: List[VocabWord],
-        rules: List[GrammarRule],
         progress_path: Optional[Path] = None,
-        speech_available: bool = True,
         match_threshold: float = 0.6,
         xp_per_correct: int = 10,
     ):
         self.words = words
-        self.rules = rules
-        self.factory = ChallengeFactory(words, speech_available=speech_available)
+        self.by_id = {w.id: w for w in words}
         self.progress = Progress(progress_path)
         self.match_threshold = match_threshold
         self.xp_per_correct = xp_per_correct
-        self._last_source: Optional[str] = None
-
-    # -- selection ---------------------------------------------------------
-    def next_challenge(self) -> Optional[Challenge]:
-        # Mix vocabulary and grammar. ~70% vocab, 30% grammar when both exist.
-        use_grammar = self.rules and (not self.words or random.random() < 0.3)
-        if use_grammar:
-            rule = self._weighted_pick(self.rules)
-            self._last_source = rule.id
-            return self.factory.build_grammar_fill(rule)
-        if not self.words:
-            return None
-        word = self._weighted_pick(self.words)
-        self._last_source = word.id
-        return self.factory.for_word(word)
-
-    def _weighted_pick(self, items):
-        weights = []
-        for it in items:
-            w = self.progress.weight(it.id)
-            if it.id == self._last_source:
-                w *= 0.25  # avoid immediate repeats
-            weights.append(w)
-        return random.choices(items, weights=weights, k=1)[0]
 
     # -- grading -----------------------------------------------------------
-    def grade(self, challenge: Challenge, given: str) -> ChallengeResult:
-        given = (given or "").strip()
-        if challenge.accepts_speech:
-            correct = text_match(given, challenge.answer, self.match_threshold)
-        else:
-            correct = normalize(given) == normalize(challenge.answer)
-        xp = self.xp_per_correct if correct else 0
-        self.progress.record(challenge.source_id, correct, xp)
-        detail = f'Heard: "{given}"' if challenge.accepts_speech and given else ""
-        return ChallengeResult(
-            correct=correct,
-            given=given,
-            expected=challenge.answer,
-            explanation=challenge.explanation,
-            xp=xp,
-            detail=detail,
-        )
+    def accept(self, heard: str, target_word: str) -> bool:
+        return text_match(heard, target_word, self.match_threshold)
 
-    # -- helpers for the HUD ----------------------------------------------
+    def record(self, word_id: str, correct: bool):
+        xp = self.xp_per_correct if correct else 0
+        self.progress.record(word_id, correct, xp)
+
+    # -- selection (this is where SRS shapes the world) --------------------
+    def demand_word(self, exclude: Iterable[str] = (), pool: Optional[Sequence[VocabWord]] = None) -> VocabWord:
+        """
+        Pick the word a gate/requirement should demand next, biased toward the
+        player's weakest / newest vocabulary.
+        """
+        exclude = set(exclude)
+        candidates = [w for w in (pool or self.words) if w.id not in exclude]
+        if not candidates:
+            candidates = list(pool or self.words)
+        weights = [self.progress.weight(w.id) for w in candidates]
+        return random.choices(candidates, weights=weights, k=1)[0]
+
+    def weakest_words(self, n: int = 5) -> List[VocabWord]:
+        return sorted(self.words, key=lambda w: -self.progress.weight(w.id))[:n]
+
+    # -- misc --------------------------------------------------------------
+    def word(self, word_id: str) -> Optional[VocabWord]:
+        return self.by_id.get(word_id)
+
     def stats(self) -> Dict[str, int]:
         return {
             "xp": self.progress.xp,
@@ -294,23 +177,8 @@ class ChallengeManager:
             "learned": len(self.progress.learned_ids),
             "total_words": len(self.words),
             "streak": self.progress.streak,
-            "best_streak": self.progress.best_streak,
-            "accuracy": int(
-                100 * self.progress.total_correct / self.progress.total_attempts
-            )
-            if self.progress.total_attempts
-            else 0,
         }
 
-    def learned_words(self) -> List[VocabWord]:
-        ids = self.progress.learned_ids
-        return [w for w in self.words if w.id in ids]
-
-    def prewarm_texts(self) -> List[str]:
-        """Every phrase the narrator might speak -- used to pre-cache TTS."""
-        texts = []
-        for w in self.words:
-            texts += [w.word, w.definition, w.example]
-        for r in self.rules:
-            texts.append(r.spoken or r.prompt.replace("___", r.answer))
-        return [t for t in dict.fromkeys(texts) if t]
+    def speakable_texts(self) -> List[str]:
+        """Everything the narrator might say -- used to pre-bake TTS at boot."""
+        return [w.word for w in self.words]

@@ -47,6 +47,11 @@ class TTSEngine:
         self._seq_lock = threading.Lock()
         self._skip = threading.Event()
 
+        # boot-time pre-bake progress (read by the loading screen)
+        self.prep_total = 0
+        self.prep_done = 0
+        self.prep_ready = not enabled  # if TTS is off, nothing to prepare
+
         if enabled:
             try:
                 pygame.mixer.init()
@@ -74,6 +79,53 @@ class TTSEngine:
         for t in texts:
             if t and t.strip():
                 self._enqueue(t, voice or self.voice, play=False, priority=2)
+
+    def prebake(self, texts: Iterable[str], voice: Optional[str] = None):
+        """Batch-cache a list of phrases in one voice (see prebake_pairs)."""
+        voice = voice or self.voice
+        self.prebake_pairs([(t, voice) for t in texts])
+
+    def prebake_pairs(self, pairs):
+        """
+        Batch-generate and cache every (text, voice) pair BEFORE gameplay so
+        that in-world playback is instantaneous (zero lag). Runs on its own
+        thread; watch `prep_done` / `prep_total` / `prep_ready` for a loading
+        bar. Already-cached phrases are skipped (instant on later boots).
+        """
+        seen = set()
+        items = []
+        for text, voice in pairs:
+            if not text or not text.strip():
+                continue
+            key = (text, voice or self.voice)
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(key)
+
+        self.prep_total = len(items)
+        self.prep_done = 0
+        self.prep_ready = False
+        if not self.enabled or not items:
+            self.prep_ready = True
+            return
+
+        def _work():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            for text, voice in items:
+                path = self._cache_path(text, voice)
+                try:
+                    if not path.exists():
+                        loop.run_until_complete(self._generate(text, voice, path))
+                except Exception as e:  # noqa: BLE001 - keep loading even if offline
+                    print(f"[tts] prebake failed for {text!r}: {e}")
+                self.prep_done += 1
+            loop.close()
+            self.prep_ready = True
+            print(f"[tts] prebaked {self.prep_done}/{self.prep_total} phrases")
+
+        threading.Thread(target=_work, name="tts-prebake", daemon=True).start()
 
     def stop(self):
         """Stop whatever is currently playing and drop queued *playback*."""
