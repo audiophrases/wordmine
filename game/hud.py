@@ -42,8 +42,8 @@ class HUD:
         self.load_dot = Entity(parent=self.loading_root, model="circle",
                                position=(0, 0.07, -0.02), scale=0.02, color=color.cyan)
 
-        # danger vignette (reddens as the chaser closes) + "hidden" tint.
-        # z=1 keeps these behind the reticle/pips but over the world.
+        # Calm full-screen overlays are kept transparent in the current
+        # listen/action mode; these can be reused for future hint or comfort tints.
         self.vignette = Entity(parent=camera.ui, model="quad", scale=(2.2, 1.2),
                                z=1.0, color=color.rgba(1, 0, 0, 0))
         self.hidden_ov = Entity(parent=camera.ui, model="quad", scale=(2.2, 1.2),

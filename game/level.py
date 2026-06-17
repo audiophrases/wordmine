@@ -1,86 +1,55 @@
 """
-The heist facility: a structured 3-zone level (built fresh each attempt so a
-"Busted" reset is trivial -- just destroy and rebuild).
+Peaceful progressive ESL rooms and levels for WordMine.
 
-  Zone 1 (Scavenge, +Z): grab key, tool & battery to power the first gate.
-  Zone 2 (The Chase, mid): a corridor of action-verb obstacles
-         -- open a door, stop a moving trap, hit a run pad, close a door behind.
-  Zone 3 (The Lockout, -Z): the SRS gate demands your weakest word; then the
-         trophy / exit.
-
-Everything is 1 unit = 1 metre so props read at a natural, human scale.
+The original corridor/zone architecture has been repurposed into calm 3D
+listening courses.  A level is a full course map.  A room is a section inside a
+level.  Gates between rooms are manual interactables; the narrator says "Go to
+the next room" and the learner discovers/uses the glowing doorway.
 """
 from __future__ import annotations
 
-import math
-import random
-from typing import List
+from typing import List, Optional
 
-from ursina import Entity, Vec3, color, destroy, time
+from ursina import Entity, Vec3, color, destroy
 
-import config
 from game.interactables import Interactable, build_decor, build_object
 
 HALF_W = 6.0
-BACK_Z = 19.0     # Zone-1 end (player start)
-FRONT_Z = -19.0   # Zone-3 end (exit)
+BACK_Z = 19.0
+FRONT_Z = -19.0
 WALL_H = 3.4
-DIV_A = 6.0       # Zone 1 | 2 divider
-DIV_B = -6.0      # Zone 2 | 3 divider
-DOOR_HALF = 1.2   # half-width of each doorway
+DIV_A = 6.0
+DIV_B = -6.0
+DOOR_HALF = 1.25
 
-_WALL_C = color.rgb(0.34, 0.36, 0.42)
-_FLOOR_C = color.rgb(0.20, 0.21, 0.25)
-
-
-class TrapGate:
-    """A security gate that slides across the corridor; "stop" freezes it."""
-
-    def __init__(self, center, span=3.0, speed=2.2):
-        self.center = Vec3(*center)
-        self.span = span
-        self.speed = speed
-        self.t = random.uniform(0, 6.28)
-        self.frozen = 0.0
-        self.entity = Entity(model="cube", color=color.rgb(0.9, 0.45, 0.1),
-                             scale=(1.0, 3.0, 0.35), position=self.center,
-                             collider="box")
-        Entity(parent=self.entity, model="cube", color=color.rgba(1, 0.8, 0.2, 1),
-               scale=(1.05, 0.12, 0.4), position=(0, 0.3, 0), unlit=True)
-
-    def freeze(self, secs):
-        self.frozen = max(self.frozen, secs)
-
-    def update(self, dt):
-        if self.frozen > 0:
-            self.frozen -= dt
-            self.entity.color = color.rgb(0.25, 0.6, 1.0)  # frozen = blue
-            return
-        self.entity.color = color.rgb(0.9, 0.45, 0.1)
-        self.t += dt * self.speed
-        self.entity.x = self.center.x + math.sin(self.t) * self.span
+_WALL_C = color.rgb(0.36, 0.40, 0.48)
+_FLOOR_C = color.rgb(0.22, 0.26, 0.30)
+_LEVEL_TINTS = {
+    1: [color.rgb(0.25, 0.30, 0.36), color.rgb(0.26, 0.34, 0.30), color.rgb(0.32, 0.28, 0.36)],
+    2: [color.rgb(0.34, 0.30, 0.24), color.rgb(0.24, 0.33, 0.35), color.rgb(0.30, 0.27, 0.37)],
+}
 
 
 class Level:
-    def __init__(self, srs):
+    def __init__(self, srs, *, level_number: int = 1, has_next_level: bool = False):
         self.srs = srs
+        self.level_number = level_number
+        self.has_next_level = has_next_level
         self.entities: List[Entity] = []
         self.interactables: List[Interactable] = []
-        self.traps: List[TrapGate] = []
-
-        self.start_pos = Vec3(0, 1.2, 13)
-        self.chaser_spawn = (0, 0, 13 + config.CHASER_SPAWN_BEHIND)
+        self.start_pos = Vec3(0, 1.2, 14)
         self.div_a, self.div_b = DIV_A, DIV_B
-
-        self.power_barrier = None
-        self.power_door = None
-        self.final_gate = None
-        self.trophy_pos = Vec3(0, 0, -15)
+        self.exit_pos = Vec3(0, 0, -15.5)
+        self.lesson_gate_1: Optional[Entity] = None
+        self.lesson_gate_2: Optional[Entity] = None
+        self.next_level_gate: Optional[Entity] = None
+        self.trophy: Optional[Entity] = None
 
         self._build_shell()
-        self._build_zone1()
-        self._build_zone2()
-        self._build_zone3()
+        if level_number == 2:
+            self._build_level_two_rooms()
+        else:
+            self._build_level_one_rooms()
 
     # -- helpers -----------------------------------------------------------
     def _track(self, e):
@@ -103,130 +72,140 @@ class Level:
             self.entities.append(inter.root)
         return inter
 
-    def _verb_station(self, kind, anchor_pos, collider_entity, payload=None,
-                      height=1.6, repeatable=False, cooldown=0.0):
-        anchor = self._track(Entity(position=anchor_pos))
-        return self._add_inter(Interactable(
-            anchor, kind, word=self.srs.word(kind), collider_entity=collider_entity,
-            height=height, payload=payload or {}, repeatable=repeatable,
-            cooldown=cooldown))
+    def _pedestal(self, x, z, tint=color.rgb(0.34, 0.36, 0.42)):
+        self._box((x, 0.35, z), (0.9, 0.7, 0.9), tint)
+        return 0.75
 
     def _slab(self, pos, scale, col):
-        """A glowing door/gate barrier (collider blocks; unlit so it reads as energy)."""
         return self._track(Entity(model="cube", position=pos, scale=scale,
                                   color=col, collider="box", unlit=True))
+
+    def _lesson_object(self, word_id, x, z, *, scale=None, kind="lesson", **kwargs):
+        word = self.srs.word(word_id)
+        if not word:
+            return None
+        top = self._pedestal(x, z)
+        if scale is not None:
+            kwargs["scale"] = scale
+        return self._add_inter(build_object(word, (x, top, z), kind=kind, **kwargs))
+
+    def _gate(self, barrier, anchor_pos, *, transition: Optional[str] = None):
+        anchor = self._track(Entity(position=anchor_pos))
+        payload = {"barrier": barrier}
+        if transition:
+            payload["transition"] = transition
+        return self._add_inter(Interactable(
+            anchor, "gate", word=self.srs.word("open"), collider_entity=barrier,
+            height=1.8, payload=payload))
 
     # -- shell -------------------------------------------------------------
     def _build_shell(self):
         length = BACK_Z - FRONT_Z
+        tints = _LEVEL_TINTS.get(self.level_number, _LEVEL_TINTS[1])
         self._box((0, -0.2, (BACK_Z + FRONT_Z) / 2), (2 * HALF_W, 0.4, length),
                   _FLOOR_C, texture_scale=(2 * HALF_W, length))
+        # subtle room carpets / color zones
+        self._box((0, -0.17, 12.2), (11.4, 0.04, 11.8), tints[0], collider=None)
+        self._box((0, -0.16, 0.0), (11.4, 0.04, 11.7), tints[1], collider=None)
+        self._box((0, -0.15, -12.3), (11.4, 0.04, 12.0), tints[2], collider=None)
+
         # outer walls
         self._box((0, WALL_H / 2, BACK_Z), (2 * HALF_W, WALL_H, 0.3), _WALL_C)
-        self._box((0, WALL_H / 2, FRONT_Z), (2 * HALF_W, WALL_H, 0.3), _WALL_C)
+        if self.has_next_level:
+            self._wall_seg(-HALF_W, -DOOR_HALF, FRONT_Z)
+            self._wall_seg(DOOR_HALF, HALF_W, FRONT_Z)
+        else:
+            self._box((0, WALL_H / 2, FRONT_Z), (2 * HALF_W, WALL_H, 0.3), _WALL_C)
         self._box((-HALF_W, WALL_H / 2, 0), (0.3, WALL_H, length), _WALL_C)
         self._box((HALF_W, WALL_H / 2, 0), (0.3, WALL_H, length), _WALL_C)
-        # inner dividers with central doorways
+
+        # inner dividers with central lesson gates
         for zc in (DIV_A, DIV_B):
             self._wall_seg(-HALF_W, -DOOR_HALF, zc)
             self._wall_seg(DOOR_HALF, HALF_W, zc)
 
-    # -- zone 1: scavenge --------------------------------------------------
-    def _pedestal(self, x, z):
-        self._box((x, 0.45, z), (0.7, 0.9, 0.7), color.rgb(0.3, 0.32, 0.38))
-        return 0.9
-
-    def _build_zone1(self):
-        spots = [(-3.5, 11), (3.5, 9.5), (0, 7.6)]
-        for wid, (x, z) in zip(config.SCAVENGE_TARGETS, spots):
-            word = self.srs.word(wid)
-            if not word:
-                continue
-            top = self._pedestal(x, z)
-            self._add_inter(build_object(word, (x, top, z), kind="scavenge"))
-        # a dog, purely scenery -- a scale check that you can "see a dog"
-        self._track(build_decor("dog", (-4.6, 0, 12.5), [0.5, 0.36, 0.2], scale=1.0))
-
-        # Zone1 -> Zone2 power door (locked until scavenging is done)
-        self.power_barrier = self._slab((0, WALL_H / 2, DIV_A),
+        self.lesson_gate_1 = self._slab((0, WALL_H / 2, DIV_A),
                                         (2 * DOOR_HALF, WALL_H, 0.25),
-                                        color.rgba(1.0, 0.5, 0.15, 0.55))
-        self.power_door = self._verb_station(
-            "open", (0, 1.4, DIV_A + 0.2), self.power_barrier,
-            payload={"barrier": self.power_barrier, "requires_power": True})
+                                        color.rgba(0.25, 0.75, 1.0, 0.48))
+        self.lesson_gate_2 = self._slab((0, WALL_H / 2, DIV_B),
+                                        (2 * DOOR_HALF, WALL_H, 0.25),
+                                        color.rgba(0.55, 0.95, 0.45, 0.48))
+        self._gate(self.lesson_gate_1, (0, 1.5, DIV_A + 0.25))
+        self._gate(self.lesson_gate_2, (0, 1.5, DIV_B + 0.25))
 
-    # -- zone 2: the chase -------------------------------------------------
-    def _add_door_inter(self, word_id, collider_entity, anchor_pos, payload, **kw):
-        anchor = self._track(Entity(position=anchor_pos))
-        return self._add_inter(Interactable(
-            anchor, word_id if word_id in ("open", "close", "stop", "hide", "run") else word_id,
-            word=self.srs.word(word_id), collider_entity=collider_entity,
-            height=1.6, payload=payload, **kw))
+        if self.has_next_level:
+            self.next_level_gate = self._slab((0, WALL_H / 2, FRONT_Z),
+                                              (2 * DOOR_HALF, WALL_H, 0.25),
+                                              color.rgba(0.98, 0.72, 1.0, 0.50))
+            self._gate(self.next_level_gate, (0, 1.5, FRONT_Z + 0.35), transition="level")
 
-    def _build_zone2(self):
-        # CLOSE: a wall console (just past the power door) that slams it behind you
-        console = self._box((-5.3, 1.0, 4.6), (0.5, 1.2, 0.8),
-                            color.rgb(0.3, 0.35, 0.45))
-        self._verb_station("close", (-4.7, 1.4, 4.6), console, height=1.2,
-                           repeatable=True, cooldown=config.CLOSE_BLOCK_SECS + 4,
-                           payload={"door_barrier": self.power_barrier})
+    # -- level 1 -----------------------------------------------------------
+    def _build_level_one_rooms(self):
+        # room 1: very easy single-word listening
+        self._lesson_object("apple", -3.6, 13.0, scale=1.1)
+        self._lesson_object("cup", 3.4, 12.2, scale=1.0)
+        self._lesson_object("ball", -2.1, 8.8, scale=1.0)
+        self._lesson_object("book", 2.0, 8.4, scale=1.15)
+        self._track(build_decor("robot", (0, 0, 16.2), [0.55, 0.68, 0.88], scale=1.0))
 
-        # RUN: a glowing floor pad
-        pad = self._track(Entity(model="cube", color=color.rgba(0.2, 1.0, 0.6, 0.85),
-                                 position=(2.6, 0.06, 3.0), scale=(1.7, 0.12, 1.7),
-                                 unlit=True, collider="box"))
-        self._verb_station("run", (2.6, 0.5, 3.0), pad, height=0.5,
-                           repeatable=True, cooldown=6.0)
+        # room 2: find/touch concrete classroom objects
+        self._lesson_object("key", -4.0, 2.7, scale=1.2)
+        self._lesson_object("box", 3.6, 2.3, scale=1.0)
+        self._lesson_object("table", -3.0, -2.6, scale=1.0)
+        self._lesson_object("basket", 3.1, -2.8, scale=1.0)
+        self._track(build_decor("dog", (0.0, 0, 0.0), [0.56, 0.38, 0.22], scale=1.2))
 
-        # OPEN: a barrier across the corridor
-        open_bar = self._slab((0, 1.5, 1.0), (2 * HALF_W - 0.6, 3.0, 0.25),
-                              color.rgba(0.2, 0.7, 1.0, 0.5))
-        self._verb_station("open", (0, 1.6, 1.2), open_bar, payload={"barrier": open_bar})
+        # room 3: gentle mixed review with duplicate items
+        self._lesson_object("robot", 0, -10.0, scale=1.15)
+        self._lesson_object("apple", -3.8, -13.0, scale=1.0)
+        self._lesson_object("cup", 3.8, -13.2, scale=1.0)
+        self._lesson_object("book", -2.0, -16.0, scale=1.0)
+        self._lesson_object("ball", 2.0, -16.0, scale=1.0)
+        if not self.has_next_level:
+            self._build_trophy()
 
-        # HIDE: a small house to duck behind
-        self._add_inter(build_object(self.srs.word("hide"), (4.3, 0, -1.0),
-                                     kind="hide", shape="house",
-                                     color=[0.5, 0.5, 0.58], scale=1.0,
-                                     repeatable=True, cooldown=config.HIDE_SECS + 3))
+    # -- level 2 -----------------------------------------------------------
+    def _build_level_two_rooms(self):
+        # room 1: new concrete words
+        self._lesson_object("banana", -3.6, 13.0, scale=1.05)
+        self._lesson_object("chair", 3.4, 12.2, scale=1.0)
+        self._lesson_object("shoe", -2.1, 8.8, scale=1.0)
+        self._lesson_object("car", 2.0, 8.4, scale=1.05)
+        self._track(build_decor("robot", (0, 0, 16.2), [0.70, 0.62, 0.92], scale=1.0))
 
-        # STOP: a sliding trap gate
-        trap = TrapGate((0, 1.5, -3.5), span=3.2, speed=2.0)
-        self.entities.append(trap.entity)
-        self.traps.append(trap)
-        self._add_inter(Interactable(trap.entity, "stop", word=self.srs.word("stop"),
-                                     collider_entity=trap.entity, height=2.0,
-                                     payload={"trap": trap}))
+        # room 2: simple find/touch review with one familiar object pair
+        self._lesson_object("bed", -4.0, 2.7, scale=0.95)
+        self._lesson_object("dog", 3.6, 2.3, scale=1.0)
+        self._lesson_object("table", -3.0, -2.6, scale=1.0)
+        self._lesson_object("basket", 3.1, -2.8, scale=1.0)
 
-    # -- zone 3: the lockout -----------------------------------------------
-    def _build_zone3(self):
-        pool = [self.srs.word(w) for w in
-                ("key", "tool", "battery", "open", "close", "stop", "hide", "run")
-                if self.srs.word(w)]
-        gate_bar = self._slab((0, WALL_H / 2, DIV_B), (2 * DOOR_HALF, WALL_H, 0.25),
-                              color.rgba(1.0, 0.2, 0.3, 0.6))
-        anchor = self._track(Entity(position=(0, 1.6, DIV_B + 0.2)))
-        self.final_gate = self._add_inter(Interactable(
-            anchor, "gate", word_provider=lambda: self.srs.demand_word(pool=pool),
-            collider_entity=gate_bar, height=1.8,
-            payload={"barrier": gate_bar}))
+        # room 3: color/size adjectives, simple placement, and level-two review
+        self._lesson_object("robot", 0, -8.4, scale=1.0)
+        self._lesson_object("red_apple", -4.5, -10.6, repeatable=True, cooldown=0.2)
+        self._lesson_object("green_apple", -2.4, -10.6, repeatable=True, cooldown=0.2)
+        self._lesson_object("big_apple", -4.4, -13.0, repeatable=True, cooldown=0.2)
+        self._lesson_object("small_apple", -2.3, -13.0, repeatable=True, cooldown=0.2)
+        self._lesson_object("basket", 2.6, -10.2, scale=0.95)
+        self._lesson_object("table", 4.4, -10.2, scale=0.9)
+        self._lesson_object("box", 2.6, -13.4, scale=0.9)
+        self._lesson_object("chair", 4.4, -13.4, scale=0.75)
+        self._lesson_object("banana", -4.2, -16.4, scale=0.9)
+        self._lesson_object("shoe", -1.2, -16.4, scale=0.9)
+        self._lesson_object("car", 1.8, -16.4, scale=0.9)
+        self._build_trophy()
 
-        # the trophy / exit
-        self._box((0, 0.25, self.trophy_pos.z), (1.4, 0.5, 1.4), color.rgb(0.4, 0.4, 0.45))
+    def _build_trophy(self):
+        self._box((0, 0.2, self.exit_pos.z), (1.4, 0.4, 1.4), color.rgb(0.45, 0.48, 0.54))
         self.trophy = self._track(Entity(model="sphere", color=color.gold, unlit=True,
-                                         position=(0, 1.5, self.trophy_pos.z), scale=0.8))
+                                         position=(0, 1.35, self.exit_pos.z), scale=0.7))
 
     # -- runtime -----------------------------------------------------------
     def update(self, dt):
         for inter in self.interactables:
             inter.tick(dt)
-        for trap in self.traps:
-            trap.update(dt)
-        if self.trophy:
-            self.trophy.rotation_y += dt * 60
 
     def destroy(self):
         for e in self.entities:
             destroy(e)
         self.entities.clear()
         self.interactables.clear()
-        self.traps.clear()

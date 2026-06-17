@@ -1,28 +1,63 @@
 {
   "language": "en-US",
   "level": "A1-A2",
-  "description": "Heist vocabulary for WordMine: scavenge nouns + action verbs. 'world_object' gives a word a 3D prop; verbs are placed on doors/traps/hide-spots by the level builder.",
+  "description": "Beginner ESL vocabulary for WordMine's peaceful listen-and-act 3D progression. Words are concrete, visually represented, and used by the level prompt sequences in main.py.",
   "words": [
     {
-      "id": "key",
-      "word": "key",
-      "category": "objects",
-      "definition": "a small metal object that opens a lock",
-      "world_object": { "shape": "key", "color": [0.90, 0.72, 0.15], "scale": 1.0 }
+      "id": "apple",
+      "word": "apple",
+      "category": "food",
+      "definition": "a round fruit",
+      "world_object": { "shape": "apple", "color": [0.90, 0.12, 0.10], "scale": 1.0 }
     },
     {
-      "id": "tool",
-      "word": "tool",
-      "category": "objects",
-      "definition": "an object you use to do work, like a wrench",
-      "world_object": { "shape": "tool", "color": [0.70, 0.72, 0.78], "scale": 1.0 }
+      "id": "red_apple",
+      "word": "red apple",
+      "category": "food-colors",
+      "definition": "an apple that is red",
+      "world_object": { "shape": "apple", "color": [0.92, 0.08, 0.06], "scale": 1.0 }
     },
     {
-      "id": "battery",
-      "word": "battery",
+      "id": "green_apple",
+      "word": "green apple",
+      "category": "food-colors",
+      "definition": "an apple that is green",
+      "world_object": { "shape": "apple", "color": [0.18, 0.78, 0.18], "scale": 1.0 }
+    },
+    {
+      "id": "big_apple",
+      "word": "big apple",
+      "category": "food-size",
+      "definition": "a large apple",
+      "world_object": { "shape": "apple", "color": [0.90, 0.18, 0.12], "scale": 1.35 }
+    },
+    {
+      "id": "small_apple",
+      "word": "small apple",
+      "category": "food-size",
+      "definition": "a small apple",
+      "world_object": { "shape": "apple", "color": [0.90, 0.18, 0.12], "scale": 0.65 }
+    },
+    {
+      "id": "cup",
+      "word": "cup",
       "category": "objects",
-      "definition": "an object that stores power",
-      "world_object": { "shape": "battery", "color": [0.20, 0.80, 0.35], "scale": 1.0 }
+      "definition": "a small container for drinking",
+      "world_object": { "shape": "cup", "color": [0.20, 0.55, 0.95], "scale": 1.0 }
+    },
+    {
+      "id": "ball",
+      "word": "ball",
+      "category": "objects",
+      "definition": "a round toy or sports object",
+      "world_object": { "shape": "ball", "color": [0.95, 0.72, 0.18], "scale": 1.0 }
+    },
+    {
+      "id": "book",
+      "word": "book",
+      "category": "objects",
+      "definition": "pages for reading",
+      "world_object": { "shape": "book", "color": [0.55, 0.25, 0.88], "scale": 1.0 }
     },
     {
       "id": "open",
@@ -31,28 +66,81 @@
       "definition": "to make a door or barrier no longer block the way"
     },
     {
-      "id": "close",
-      "word": "close",
-      "category": "verbs",
-      "definition": "to shut a door so it blocks the way"
+      "id": "key",
+      "word": "key",
+      "category": "objects",
+      "definition": "a small object that opens a lock",
+      "world_object": { "shape": "key", "color": [0.90, 0.72, 0.15], "scale": 1.0 }
     },
     {
-      "id": "stop",
-      "word": "stop",
-      "category": "verbs",
-      "definition": "to make something freeze and not move"
+      "id": "box",
+      "word": "box",
+      "category": "objects",
+      "definition": "a container with flat sides",
+      "world_object": { "shape": "box", "color": [0.72, 0.42, 0.20], "scale": 1.0 }
     },
     {
-      "id": "hide",
-      "word": "hide",
-      "category": "verbs",
-      "definition": "to go where you cannot be seen"
+      "id": "table",
+      "word": "table",
+      "category": "objects",
+      "definition": "furniture with a flat top",
+      "world_object": { "shape": "table", "color": [0.55, 0.35, 0.18], "scale": 1.0 }
     },
     {
-      "id": "run",
-      "word": "run",
-      "category": "verbs",
-      "definition": "to move very fast on your feet"
+      "id": "basket",
+      "word": "basket",
+      "category": "objects",
+      "definition": "a container for carrying things",
+      "world_object": { "shape": "basket", "color": [0.76, 0.52, 0.25], "scale": 1.0 }
+    },
+    {
+      "id": "robot",
+      "word": "robot",
+      "category": "people-and-characters",
+      "definition": "a friendly machine character",
+      "world_object": { "shape": "robot", "color": [0.52, 0.70, 0.86], "scale": 1.0 }
+    },
+    {
+      "id": "banana",
+      "word": "banana",
+      "category": "food",
+      "definition": "a long yellow fruit",
+      "world_object": { "shape": "banana", "color": [0.96, 0.82, 0.18], "scale": 1.0 }
+    },
+    {
+      "id": "chair",
+      "word": "chair",
+      "category": "objects",
+      "definition": "furniture for sitting",
+      "world_object": { "shape": "chair", "color": [0.42, 0.64, 0.88], "scale": 1.0 }
+    },
+    {
+      "id": "shoe",
+      "word": "shoe",
+      "category": "clothes",
+      "definition": "something worn on a foot",
+      "world_object": { "shape": "shoe", "color": [0.20, 0.20, 0.24], "scale": 1.0 }
+    },
+    {
+      "id": "car",
+      "word": "car",
+      "category": "transport",
+      "definition": "a road vehicle",
+      "world_object": { "shape": "car", "color": [0.92, 0.18, 0.16], "scale": 1.0 }
+    },
+    {
+      "id": "bed",
+      "word": "bed",
+      "category": "objects",
+      "definition": "furniture for sleeping",
+      "world_object": { "shape": "bed", "color": [0.52, 0.62, 0.78], "scale": 1.0 }
+    },
+    {
+      "id": "dog",
+      "word": "dog",
+      "category": "animals",
+      "definition": "a common pet animal",
+      "world_object": { "shape": "dog", "color": [0.56, 0.38, 0.22], "scale": 1.0 }
     }
   ]
 }
